@@ -1,0 +1,26 @@
+{
+  "name": "Эндуро Карта — Астраханская область",
+  "short_name": "Эндуро Карта",
+  "description": "Спутниковая карта Астраханской области для эндуро — дороги, маршруты, точки",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0a0e17",
+  "theme_color": "#f97316",
+  "lang": "ru",
+  "categories": ["navigation", "sports"],
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

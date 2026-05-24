@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="description" content="Спутниковая карта Астраханской области для эндуро — дороги, маршруты, топливо">
+    <meta name="theme-color" content="#f97316">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Эндуро Карта">
+    <meta name="mobile-web-app-capable" content="yes">
+    
+    <title>Эндуро Карта — Астраханская область</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="icon.svg">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+    <!-- Header -->
+    <header id="app-header">
+        <div class="header-left">
+            <div class="logo">
+                <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                    <path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+                </svg>
+                <h1>ЭНДУРО КАРТА</h1>
+            </div>
+            <span class="region-badge">Астраханская обл.</span>
+        </div>
+        <div class="header-center">
+            <div class="coords-display">
+                <span class="coord-value" id="lat-display">46.35000</span>
+                <span class="coord-sep">,</span>
+                <span class="coord-value" id="lng-display">48.05000</span>
+            </div>
+        </div>
+        <div class="header-right">
+            <button class="header-btn" id="btn-bikes" title="Настройки мотоциклов">
+                <span>⛽</span>
+            </button>
+            <div class="zoom-pill">
+                <span class="zoom-icon">🔍</span>
+                <span id="zoom-value">10</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Toolbar -->
+    <aside id="toolbar">
+        <div class="tool-group">
+            <button class="tool-btn active" id="btn-pan" data-tooltip="Навигация (1)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M5 9l-3 3 3 3"/><path d="M9 5l3-3 3 3"/>
+                    <path d="M15 19l-3 3-3-3"/><path d="M19 9l3 3-3 3"/>
+                    <line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/>
+                </svg>
+            </button>
+            <button class="tool-btn" id="btn-road" data-tooltip="Дорога (2)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 19L8 5"/><path d="M16 5l4 14"/>
+                    <line x1="12" y1="6" x2="12" y2="8"/><line x1="12" y1="11" x2="12" y2="13"/>
+                    <line x1="12" y1="16" x2="12" y2="18"/>
+                </svg>
+            </button>
+            <button class="tool-btn" id="btn-route" data-tooltip="Маршрут (3)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                </svg>
+            </button>
+            <button class="tool-btn" id="btn-marker" data-tooltip="Маркер (4)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                    <circle cx="12" cy="10" r="3"/>
+                </svg>
+            </button>
+            <button class="tool-btn" id="btn-measure" data-tooltip="Расстояние (5)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M2 20h20"/><path d="M6 20v-4"/><path d="M10 20v-8"/>
+                    <path d="M14 20v-4"/><path d="M18 20v-12"/>
+                </svg>
+            </button>
+        </div>
+        <div class="tool-divider desktop-only"></div>
+        <div class="tool-group">
+            <button class="tool-btn layer-btn active" id="btn-satellite" data-tooltip="Спутник">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/><path d="M2 12h20"/>
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                </svg>
+            </button>
+            <button class="tool-btn layer-btn" id="btn-terrain" data-tooltip="Рельеф">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="m8 3 4 8 5-5 5 15H2L8 3z"/>
+                </svg>
+            </button>
+            <button class="tool-btn toggle-btn active" id="btn-labels" data-tooltip="Подписи">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/>
+                </svg>
+            </button>
+            <button class="tool-btn toggle-btn active" id="btn-show-roads" data-tooltip="Дороги">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                </svg>
+            </button>
+        </div>
+        <div class="tool-divider desktop-only"></div>
+        <div class="tool-group">
+            <button class="tool-btn" id="btn-save" data-tooltip="Сохранить">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                    <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+                </svg>
+            </button>
+            <button class="tool-btn" id="btn-export" data-tooltip="GPX">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+            </button>
+            <button class="tool-btn danger" id="btn-clear" data-tooltip="Очистить">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Map -->
+    <div id="map"></div>
+
+    <!-- Info panel (route/road/measure) -->
+    <div id="info-panel" class="hidden">
+        <div class="info-panel-header">
+            <span class="info-panel-title" id="info-title">—</span>
+            <button class="info-panel-close" id="info-close">&times;</button>
+        </div>
+        <div class="info-panel-body">
+            <div class="info-stat">
+                <span class="info-stat-label">Расстояние</span>
+                <span class="info-stat-value" id="info-distance">0 м</span>
+            </div>
+            <div class="info-stat">
+                <span class="info-stat-label">Точки</span>
+                <span class="info-stat-value" id="info-points">0</span>
+            </div>
+        </div>
+        <!-- Fuel info (only visible for routes) -->
+        <div class="info-fuel hidden" id="info-fuel">
+            <div class="fuel-bike-selector">
+                <span class="fuel-label">Мото:</span>
+                <select class="fuel-select" id="info-fuel-bike"></select>
+            </div>
+            <div class="fuel-stats" id="info-fuel-stats"></div>
+        </div>
+        <div class="info-panel-footer hidden" id="info-footer">
+            <button class="info-btn" id="info-undo">↩ Отмена</button>
+            <button class="info-btn primary" id="info-finish">✓ Готово</button>
+        </div>
+    </div>
+
+    <!-- Color picker -->
+    <div id="color-picker" class="hidden">
+        <div class="color-picker-options" id="color-options"></div>
+    </div>
+
+    <!-- Bike settings modal -->
+    <div class="modal-overlay hidden" id="bikes-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>⛽ Мотоциклы</h2>
+                <button class="modal-close" id="bikes-modal-close">&times;</button>
+            </div>
+            <div class="modal-body" id="bikes-list"></div>
+            <div class="modal-footer">
+                <button class="modal-btn secondary" id="bikes-add">+ Добавить мотоцикл</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast-container"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
