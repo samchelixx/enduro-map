@@ -42,6 +42,10 @@
             </div>
         </div>
         <div class="header-right">
+            <button class="header-btn" id="btn-account" title="Аккаунт">
+                <span id="account-icon">👤</span>
+                <span id="account-name" style="font-size: 12px; margin-left: 4px; display: none;"></span>
+            </button>
             <button class="header-btn" id="btn-bikes" title="Настройки мотоциклов">
                 <span>⛽</span>
             </button>
@@ -189,6 +193,26 @@
 
     <!-- Toast -->
     <div id="toast-container"></div>
+
+    <!-- Auth Modal -->
+    <div id="auth-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Вход в аккаунт</h2>
+                <button class="modal-close" id="auth-close">✕</button>
+            </div>
+            <div class="auth-tabs">
+                <button class="auth-tab active" id="tab-login">Вход</button>
+                <button class="auth-tab" id="tab-register">Регистрация</button>
+            </div>
+            <div class="auth-body">
+                <input type="text" id="auth-username" class="marker-input" placeholder="Логин" style="margin-bottom: 12px;">
+                <input type="password" id="auth-password" class="marker-input" placeholder="Пароль" style="margin-bottom: 16px;">
+                <button class="info-btn primary" id="auth-submit" style="width: 100%; justify-content: center;">Войти</button>
+                <button class="info-btn" id="auth-logout" style="width: 100%; justify-content: center; margin-top: 12px; display: none; border-color: #ef4444; color: #ef4444;">Выйти из аккаунта</button>
+            </div>
+        </div>
+    </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="app.js"></script>

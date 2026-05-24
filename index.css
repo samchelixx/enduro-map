@@ -463,6 +463,12 @@ html, body {
 }
 
 .bike-field-input:focus { border-color: var(--accent); }
+.bike-field-input[type="number"]:focus { border-color: var(--accent); outline: none; }
+
+/* Auth */
+.auth-tabs { display: flex; gap: 8px; margin-bottom: 16px; background: var(--bg-primary); padding: 4px; border-radius: 8px; border: 1px solid var(--border); }
+.auth-tab { flex: 1; padding: 8px; border: none; background: transparent; color: var(--text-secondary); font-size: 13px; font-weight: 600; cursor: pointer; border-radius: 6px; transition: all 0.2s; }
+.auth-tab.active { background: var(--surface); color: var(--text-primary); box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
 
 .bike-field-hint {
     font-size: 9px;
