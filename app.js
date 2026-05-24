@@ -6,6 +6,11 @@
 (function () {
     'use strict';
 
+    // ---- PWA Registration (Top Priority to prevent bricking on JS crash) ----
+    if('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js').catch(e=>console.log('SW:',e));
+    }
+
     const CENTER = [46.35, 48.05], ZOOM = 10;
     const STORAGE = 'enduro_map_v4', BIKES_STORAGE = 'enduro_bikes';
     const BOUNDS = L.latLngBounds(L.latLng(44.8, 44.5), L.latLng(48.8, 49.5));
@@ -706,12 +711,14 @@
 
     // ---- Friends System ----
     const friendsModal = $('friends-modal');
-    $('btn-friends').addEventListener('click', () => {
-        if (!currentToken) return toast('Сначала войдите в аккаунт!', 'error');
-        friendsModal.classList.remove('hidden');
-        loadFriends();
-    });
-    $('friends-close').addEventListener('click', () => friendsModal.classList.add('hidden'));
+    if ($('btn-friends') && friendsModal) {
+        $('btn-friends').addEventListener('click', () => {
+            if (!currentToken) return toast('Сначала войдите в аккаунт!', 'error');
+            friendsModal.classList.remove('hidden');
+            loadFriends();
+        });
+        $('friends-close').addEventListener('click', () => friendsModal.classList.add('hidden'));
+    }
 
     async function loadFriends() {
         if (!currentToken) return;
@@ -761,21 +768,23 @@
         });
     }
 
-    $('btn-add-friend').addEventListener('click', async () => {
-        const friendUsername = $('friend-username').value.trim();
-        if (!friendUsername) return;
-        try {
-            const res = await fetch(`${API_URL}/friends/add`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` },
-                body: JSON.stringify({ friendUsername })
-            });
-            const d = await res.json();
-            if (!res.ok) throw new Error(d.error);
-            toast('Друг добавлен!', 'success');
-            $('friend-username').value = '';
-            loadFriends();
-        } catch(e) { toast(e.message, 'error'); }
-    });
+    if ($('btn-add-friend')) {
+        $('btn-add-friend').addEventListener('click', async () => {
+            const friendUsername = $('friend-username').value.trim();
+            if (!friendUsername) return;
+            try {
+                const res = await fetch(`${API_URL}/friends/add`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` },
+                    body: JSON.stringify({ friendUsername })
+                });
+                const d = await res.json();
+                if (!res.ok) throw new Error(d.error);
+                toast('Друг добавлен!', 'success');
+                $('friend-username').value = '';
+                loadFriends();
+            } catch(e) { toast(e.message, 'error'); }
+        });
+    }
 
     // ---- Save / Export / Clear ----
     $('btn-save').addEventListener('click', save);
