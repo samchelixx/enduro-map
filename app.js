@@ -517,10 +517,30 @@
             // Buttons
             const btnsDiv = document.createElement('div');
             btnsDiv.className = 'marker-form-buttons';
-            btnsDiv.innerHTML = `<button class="marker-btn-save">✏️ Изменить</button><button class="marker-btn-save" style="background:#14b8a6">➕ Продолжить</button><button class="marker-btn-delete">Удалить</button>`;
+            btnsDiv.innerHTML = `<button class="marker-btn-save">✏️ Изменить</button>
+                <button class="marker-btn-save" style="background:#14b8a6">➕ Продолж.</button>
+                <button class="marker-btn-save" style="background:#8b5cf6">🔗 Поделиться</button>
+                <button class="marker-btn-delete">Удалить</button>`;
             const bs = btnsDiv.querySelectorAll('.marker-btn-save');
             bs[0].addEventListener('click', () => { map.closePopup(); startEdit('route', obj); });
             bs[1].addEventListener('click', () => { map.closePopup(); startEdit('route', obj); setTimeout(startContinue, 100); });
+            bs[2].addEventListener('click', async () => {
+                if (!currentToken) return toast('Сначала войдите в аккаунт!', 'error');
+                const btn = bs[2];
+                btn.textContent = '...';
+                try {
+                    const res = await fetch(`${API_URL}/shared`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` },
+                        body: JSON.stringify({ route: rd })
+                    });
+                    const d = await res.json();
+                    if (!res.ok) throw new Error(d.error);
+                    const link = `${window.location.origin}${window.location.pathname}?route=${d.sharedId}`;
+                    navigator.clipboard.writeText(link).catch(()=>{});
+                    toast('Ссылка скопирована!', 'success');
+                    btn.textContent = '🔗 Поделиться';
+                } catch(e) { toast('Ошибка', 'error'); btn.textContent = 'Ошибка'; }
+            });
             btnsDiv.querySelector('.marker-btn-delete').addEventListener('click', del);
             div.appendChild(btnsDiv);
             return div;
@@ -684,6 +704,79 @@
         }
     }
 
+    // ---- Friends System ----
+    const friendsModal = $('friends-modal');
+    $('btn-friends').addEventListener('click', () => {
+        if (!currentToken) return toast('Сначала войдите в аккаунт!', 'error');
+        friendsModal.classList.remove('hidden');
+        loadFriends();
+    });
+    $('friends-close').addEventListener('click', () => friendsModal.classList.add('hidden'));
+
+    async function loadFriends() {
+        if (!currentToken) return;
+        try {
+            const res = await fetch(`${API_URL}/friends`, { headers: { 'Authorization': `Bearer ${currentToken}` } });
+            if (!res.ok) throw new Error();
+            const list = await res.json();
+            renderFriends(list);
+        } catch(e) {}
+    }
+
+    function renderFriends(list) {
+        const fl = $('friends-list');
+        fl.innerHTML = '';
+        if (!list.length) fl.innerHTML = '<div style="color:var(--text-secondary);font-size:12px;">У вас пока нет друзей.</div>';
+        
+        list.forEach(f => {
+            const div = document.createElement('div');
+            div.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:var(--bg-primary); padding:8px 12px; border-radius:8px; border:1px solid var(--border);';
+            div.innerHTML = `<span style="font-weight:600;font-size:14px;">${f.username}</span>
+                <button class="info-btn" style="width:auto; padding:4px 8px; border-color:var(--accent); color:var(--accent);">Показать маршруты</button>`;
+            
+            div.querySelector('button').addEventListener('click', async () => {
+                toast(`Загрузка карты друга ${f.username}...`, 'info');
+                try {
+                    const res = await fetch(`${API_URL}/friends/${f.id}/data`, { headers: { 'Authorization': `Bearer ${currentToken}` } });
+                    if (!res.ok) throw new Error();
+                    const d = await res.json();
+                    
+                    // Draw friend's routes temporarily
+                    if (d.routes) {
+                        d.routes.forEach(rd => {
+                            const pts = rd.points.map(p=>L.latLng(p[0],p[1]));
+                            // Render with dash array to indicate it's a friend's route
+                            L.polyline(pts,{color:rd.color||'#0ea5e9',weight:4,opacity:0.9,dashArray:'10,10',lineCap:'round',lineJoin:'round'})
+                             .bindPopup(`<b>Маршрут друга: ${f.username}</b><br>${rd.name}`)
+                             .addTo(map);
+                        });
+                        toast(`Маршруты друга ${f.username} добавлены на карту! (Пунктиром)`, 'success');
+                        friendsModal.classList.add('hidden');
+                    } else {
+                        toast('У друга нет маршрутов', 'info');
+                    }
+                } catch(e) { toast('Ошибка загрузки', 'error'); }
+            });
+            fl.appendChild(div);
+        });
+    }
+
+    $('btn-add-friend').addEventListener('click', async () => {
+        const friendUsername = $('friend-username').value.trim();
+        if (!friendUsername) return;
+        try {
+            const res = await fetch(`${API_URL}/friends/add`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` },
+                body: JSON.stringify({ friendUsername })
+            });
+            const d = await res.json();
+            if (!res.ok) throw new Error(d.error);
+            toast('Друг добавлен!', 'success');
+            $('friend-username').value = '';
+            loadFriends();
+        } catch(e) { toast(e.message, 'error'); }
+    });
+
     // ---- Save / Export / Clear ----
     $('btn-save').addEventListener('click', save);
     $('btn-export').addEventListener('click', exportGPX);
@@ -799,6 +892,35 @@
 
     // ---- PWA ----
     if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(e=>console.log('SW:',e));
+
+    // ---- Check for Shared Route link ----
+    async function checkSharedRoute() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const routeId = urlParams.get('route');
+        if (routeId) {
+            try {
+                const res = await fetch(`${API_URL}/shared/${routeId}`);
+                if (!res.ok) throw new Error();
+                const d = await res.json();
+                
+                const rd = d.route;
+                const pts = rd.points.map(p=>L.latLng(p[0],p[1]));
+                // Draw shared route prominently
+                L.polyline(pts,{color:'#8b5cf6',weight:6,opacity:1,lineCap:'round',lineJoin:'round'})
+                 .bindPopup(`<b>Поделился: ${d.owner}</b><br>${rd.name}`)
+                 .addTo(map);
+                 
+                // Fit bounds to it
+                map.fitBounds(L.latLngBounds(pts));
+                toast(`Загружен маршрут от ${d.owner}!`, 'success');
+                
+                // Remove param from URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+            } catch(e) { toast('Не удалось загрузить маршрут по ссылке', 'error'); }
+        }
+    }
+
+    checkSharedRoute();
 
     // ---- Auto-restore ----
     updateAuthUI();

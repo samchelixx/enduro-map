@@ -42,6 +42,9 @@
             </div>
         </div>
         <div class="header-right">
+            <button class="header-btn" id="btn-friends" title="Друзья">
+                <span>👥</span>
+            </button>
             <button class="header-btn" id="btn-account" title="Аккаунт">
                 <span id="account-icon">👤</span>
                 <span id="account-name" style="font-size: 12px; margin-left: 4px; display: none;"></span>
@@ -210,6 +213,25 @@
                 <input type="password" id="auth-password" class="marker-input" placeholder="Пароль" style="margin-bottom: 16px;">
                 <button class="info-btn primary" id="auth-submit" style="width: 100%; justify-content: center;">Войти</button>
                 <button class="info-btn" id="auth-logout" style="width: 100%; justify-content: center; margin-top: 12px; display: none; border-color: #ef4444; color: #ef4444;">Выйти из аккаунта</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Friends Modal -->
+    <div id="friends-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Друзья</h2>
+                <button class="modal-close" id="friends-close">✕</button>
+            </div>
+            <div class="auth-body" style="border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 12px;">
+                <div style="display:flex; gap:8px;">
+                    <input type="text" id="friend-username" class="marker-input" placeholder="Никнейм друга">
+                    <button class="info-btn primary" id="btn-add-friend" style="width:auto; padding: 0 12px;">Добавить</button>
+                </div>
+            </div>
+            <div id="friends-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow-y: auto;">
+                <!-- Сюда добавляются друзья -->
             </div>
         </div>
     </div>

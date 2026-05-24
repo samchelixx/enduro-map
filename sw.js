@@ -1,4 +1,4 @@
-const CACHE_NAME = 'enduro-map-v7';
+const CACHE_NAME = 'enduro-map-v8';
 
 self.addEventListener('install', (event) => {
     self.skipWaiting();
