@@ -618,13 +618,21 @@
         const password = $('auth-password').value.trim();
         if (!username || !password) return toast('Введите логин и пароль', 'error');
 
+        const btn = $('auth-submit');
+        const originalText = btn.textContent;
+        btn.textContent = 'Ожидание...';
+        btn.disabled = true;
+
         try {
             const res = await fetch(`${API_URL}/${authMode}`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password })
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Ошибка');
+            
+            let data;
+            try { data = await res.json(); } catch(e) { throw new Error('Ошибка связи с сервером'); }
+            
+            if (!res.ok) throw new Error(data.error || 'Неизвестная ошибка');
 
             localStorage.setItem('enduro_token', data.token);
             localStorage.setItem('enduro_user', data.username);
@@ -634,7 +642,15 @@
             authModal.classList.add('hidden');
             loadFromServer();
         } catch (e) {
-            toast(e.message, 'error');
+            console.error(e);
+            if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
+                toast('Сервер недоступен. Если он на Render, он может "просыпаться" до 1 минуты. Подождите...', 'error');
+            } else {
+                toast(`Ошибка: ${e.message}`, 'error');
+            }
+        } finally {
+            btn.textContent = originalText;
+            btn.disabled = false;
         }
     });
 
