@@ -2,9 +2,9 @@
   "name": "Эндуро Карта — Астраханская область",
   "short_name": "Эндуро Карта",
   "description": "Спутниковая карта для эндуро",
-  "start_url": "/enduro-map/",
-  "scope": "/enduro-map/",
-  "id": "/enduro-map/",
+  "start_url": "/",
+  "scope": "/",
+  "id": "/",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#0a0e17",
@@ -12,13 +12,13 @@
   "lang": "ru",
   "icons": [
     {
-      "src": "/enduro-map/icon.svg",
+      "src": "/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "/enduro-map/icon.svg",
+      "src": "/icon.svg",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "maskable"
