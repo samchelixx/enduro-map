@@ -16,6 +16,10 @@
     const DOT = 3;
     const ROAD_STYLE = { color:'rgba(190,190,190,0.45)', weight:3, opacity:1, lineCap:'round', lineJoin:'round' };
 
+    const API_URL = 'https://enduro-server.onrender.com';
+    let currentUser = localStorage.getItem('enduro_user') || null;
+    let currentToken = localStorage.getItem('enduro_token') || null;
+
     const DEFAULT_BIKES = [
         { id:1, name:'Мой мотоцикл', tank:8, consumptionL:8, consumptionKm:150 },
         { id:2, name:'Друг', tank:8, consumptionL:8, consumptionKm:150 }
@@ -600,16 +604,112 @@
     function calcDist(pts){let t=0;for(let i=1;i<pts.length;i++)t+=map.distance(pts[i-1],pts[i]);return t;}
     function fmtDist(m){return m<1000?`${Math.round(m)} м`:`${(m/1000).toFixed(2)} км`;}
 
-    // ---- Save / Export / Clear ----
-    $('btn-save').addEventListener('click',save);
-    $('btn-export').addEventListener('click',exportGPX);
-    $('btn-clear').addEventListener('click',clearAll);
+    // ---- Auth Modal ----
+    const authModal=$('auth-modal');
+    $('btn-account').addEventListener('click', () => { authModal.classList.remove('hidden'); });
+    $('auth-close').addEventListener('click', () => { authModal.classList.add('hidden'); });
+    
+    let authMode = 'login';
+    $('tab-login').addEventListener('click', () => { authMode='login'; $('tab-login').classList.add('active'); $('tab-register').classList.remove('active'); $('auth-submit').textContent='Войти'; });
+    $('tab-register').addEventListener('click', () => { authMode='register'; $('tab-register').classList.add('active'); $('tab-login').classList.remove('active'); $('auth-submit').textContent='Зарегистрироваться'; });
 
-    function save(){
+    $('auth-submit').addEventListener('click', async () => {
+        const username = $('auth-username').value.trim();
+        const password = $('auth-password').value.trim();
+        if (!username || !password) return toast('Введите логин и пароль', 'error');
+
+        try {
+            const res = await fetch(`${API_URL}/${authMode}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Ошибка');
+
+            localStorage.setItem('enduro_token', data.token);
+            localStorage.setItem('enduro_user', data.username);
+            currentToken = data.token; currentUser = data.username;
+            toast('Успешный вход!', 'success');
+            updateAuthUI();
+            authModal.classList.add('hidden');
+            loadFromServer();
+        } catch (e) {
+            toast(e.message, 'error');
+        }
+    });
+
+    $('auth-logout').addEventListener('click', () => {
+        localStorage.removeItem('enduro_token'); localStorage.removeItem('enduro_user');
+        currentToken = null; currentUser = null;
+        clearSilent(); // Clear map for next user
+        updateAuthUI();
+        authModal.classList.add('hidden');
+        toast('Вы вышли из аккаунта', 'info');
+    });
+
+    function updateAuthUI() {
+        if (currentUser) {
+            $('account-name').textContent = currentUser;
+            $('account-name').style.display = 'inline';
+            $('auth-username').style.display = 'none';
+            $('auth-password').style.display = 'none';
+            $('auth-submit').style.display = 'none';
+            $('auth-logout').style.display = 'flex';
+            $('tab-login').style.display = 'none';
+            $('tab-register').style.display = 'none';
+        } else {
+            $('account-name').style.display = 'none';
+            $('auth-username').style.display = 'block';
+            $('auth-password').style.display = 'block';
+            $('auth-submit').style.display = 'flex';
+            $('auth-logout').style.display = 'none';
+            $('tab-login').style.display = 'block';
+            $('tab-register').style.display = 'block';
+        }
+    }
+
+    // ---- Save / Export / Clear ----
+    $('btn-save').addEventListener('click', save);
+    $('btn-export').addEventListener('click', exportGPX);
+    $('btn-clear').addEventListener('click', clearAll);
+
+    async function save(){
         if(editing)finishEdit();
         const data={roads:roads.map(r=>r.data),markers:markers.map(m=>m.data),routes:routes.map(r=>r.data),center:[map.getCenter().lat,map.getCenter().lng],zoom:map.getZoom(),layer:baseLayer,labelsOn,roadsOn,savedAt:new Date().toISOString()};
-        localStorage.setItem(STORAGE,JSON.stringify(data));saveBikes();
-        toast(`Сохранено: ${roads.length} дор. · ${routes.length} маршр. · ${markers.length} маркеров`,'success');
+        
+        saveBikes(); // Bikes are local for now
+
+        // Offline / Local save
+        localStorage.setItem(STORAGE, JSON.stringify(data));
+        toast(`Сохранено локально: ${roads.length} дор. · ${routes.length} маршр. · ${markers.length} маркеров`,'success');
+
+        // Cloud save if logged in
+        if (currentToken) {
+            try {
+                const res = await fetch(`${API_URL}/data`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` },
+                    body: JSON.stringify(data)
+                });
+                if (res.ok) toast('Синхронизировано с облаком ☁️', 'success');
+            } catch (e) {
+                console.error(e); toast('Ошибка синхронизации. Сохранено локально.', 'warn');
+            }
+        }
+    }
+
+    async function loadFromServer() {
+        if (!currentToken) return;
+        try {
+            const res = await fetch(`${API_URL}/data`, { headers: { 'Authorization': `Bearer ${currentToken}` } });
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+            if (data.roads || data.routes || data.markers) {
+                restore(data, false);
+                localStorage.setItem(STORAGE, JSON.stringify(data)); // update local cache
+            }
+        } catch (e) {
+            console.error('Ошибка загрузки с сервера', e);
+        }
     }
 
     function restore(data,silent){
@@ -685,8 +785,14 @@
     if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(e=>console.log('SW:',e));
 
     // ---- Auto-restore ----
+    updateAuthUI();
     const saved=localStorage.getItem(STORAGE);
     if(saved){try{restore(JSON.parse(saved),true);}catch(e){console.error(e);}}
+    
+    if (currentToken) {
+        loadFromServer(); // Load fresh from server if online
+    }
+
     setTimeout(()=>toast('Эндуро Карта — Астраханская область 🏜️','success'),400);
 
 })();
