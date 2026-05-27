@@ -57,13 +57,14 @@ html, body {
 /* ==================== HEADER ==================== */
 #app-header {
     position: fixed; top: 0; left: 0; right: 0;
-    height: var(--header-h);
+    padding-top: env(safe-area-inset-top, 0px);
+    height: calc(var(--header-h) + env(safe-area-inset-top, 0px));
     background: var(--bg-glass);
     backdrop-filter: blur(24px) saturate(180%);
     -webkit-backdrop-filter: blur(24px) saturate(180%);
     border-bottom: 1px solid var(--border);
     display: flex; align-items: center; justify-content: space-between;
-    padding: 0 12px; z-index: 1000;
+    padding-left: 12px; padding-right: 12px; z-index: 1000;
 }
 
 .header-left { display: flex; align-items: center; gap: 10px; }
@@ -115,7 +116,7 @@ html, body {
 
 /* ==================== TOOLBAR ==================== */
 #toolbar {
-    position: fixed; top: var(--header-h); left: 0; bottom: 0;
+    position: fixed; top: calc(var(--header-h) + env(safe-area-inset-top, 0px)); left: 0; bottom: 0;
     width: var(--toolbar-w);
     background: var(--bg-glass);
     backdrop-filter: blur(24px) saturate(180%);
@@ -161,7 +162,7 @@ html, body {
 }
 
 /* ==================== MAP ==================== */
-#map { position: fixed; top: var(--header-h); left: var(--toolbar-w); right: 0; bottom: 0; z-index: 1; }
+#map { position: fixed; top: calc(var(--header-h) + env(safe-area-inset-top, 0px)); left: var(--toolbar-w); right: 0; bottom: 0; z-index: 1; }
 
 .leaflet-control-zoom { border: none !important; box-shadow: var(--shadow) !important; border-radius: var(--radius-sm) !important; overflow: hidden; }
 .leaflet-control-zoom a {

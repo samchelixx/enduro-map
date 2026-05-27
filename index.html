@@ -49,6 +49,9 @@
                 <span id="account-icon">👤</span>
                 <span id="account-name" style="font-size: 12px; margin-left: 4px; display: none;"></span>
             </button>
+            <button class="header-btn" id="btn-offline" title="Офлайн карты">
+                <span>💾</span>
+            </button>
             <button class="header-btn" id="btn-bikes" title="Настройки мотоциклов">
                 <span>⛽</span>
             </button>
@@ -232,6 +235,50 @@
             </div>
             <div id="friends-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow-y: auto;">
                 <!-- Сюда добавляются друзья -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Offline Map Modal -->
+    <div id="offline-modal" class="modal-overlay hidden">
+        <div class="modal-content modal" style="max-width: 380px;">
+            <div class="modal-header">
+                <h2>💾 Офлайн карты</h2>
+                <button class="modal-close" id="offline-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.4;">
+                    Вы можете скачать текущую область экрана для использования без интернета. Карты кэшируются на максимальном зуме.
+                </p>
+                <div class="bike-field" style="margin-bottom: 12px;">
+                    <span class="bike-field-label">Тип карты</span>
+                    <select id="offline-layer-select" class="marker-select">
+                        <option value="s">Спутник (Satellite)</option>
+                        <option value="p">Рельеф (Terrain)</option>
+                        <option value="h">Подписи (Labels)</option>
+                    </select>
+                </div>
+                <div class="bike-field" style="margin-bottom: 12px;">
+                    <span class="bike-field-label">Максимальный зум для скачивания</span>
+                    <select id="offline-zoom-select" class="marker-select">
+                        <option value="15">До 15 зума (Быстро)</option>
+                        <option value="16" selected>До 16 зума (Средне)</option>
+                        <option value="17">До 17 зума (Максимально детально)</option>
+                    </select>
+                </div>
+                <div id="offline-progress-container" class="hidden" style="margin-top: 12px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
+                        <span id="offline-progress-status">Скачивание...</span>
+                        <span id="offline-progress-percent">0%</span>
+                    </div>
+                    <div style="background: var(--bg-primary); border-radius: 4px; height: 8px; overflow: hidden; border: 1px solid var(--border);">
+                        <div id="offline-progress-bar" style="background: var(--accent); width: 0%; height: 100%; transition: width 0.1s;"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="gap: 8px; padding-top: 12px;">
+                <button class="modal-btn secondary" id="offline-clear-cache" style="border-color: #ef4444; color: #ef4444;">Очистить кэш</button>
+                <button class="modal-btn primary" id="offline-start-download">Скачать</button>
             </div>
         </div>
     </div>

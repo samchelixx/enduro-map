@@ -466,31 +466,32 @@
 
     function mkRoadLine(pts) { const l=L.polyline(pts.map(p=>L.latLng(p[0],p[1])),{...ROAD_STYLE}); roadsGroup.addLayer(l); return l; }
     function mkHitLine(pts) { const l=L.polyline(pts.map(p=>L.latLng(p[0],p[1])),{color:'transparent',weight:16,opacity:0}); roadsGroup.addLayer(l); return l; }
-
     // ---- Routes ----
     function finishRoute() {
         if (drawPts.length >= 2) {
             const dist = calcDist(drawPts);
-            const rd = { id:Date.now(), points:drawPts.map(p=>[p.lat,p.lng]), color:routeColor, distance:dist, name:`Маршрут ${routes.length+1}` };
+            const rd = { id:Date.now(), points:drawPts.map(p=>[p.lat,p.lng]), color:routeColor, distance:dist, name:`Маршрут ${routes.length+1}`, weight:3 };
             const lls = drawPts.map(p=>L.latLng(p.lat,p.lng));
-            const line = L.polyline(lls,{color:rd.color,weight:3,opacity:0.9,lineCap:'round',lineJoin:'round'}).addTo(map);
-            const dots = lls.map(p=>L.circleMarker(p,{radius:DOT,color:rd.color,fillColor:'#fff',fillOpacity:1,weight:1.5}).addTo(map));
+            const line = L.polyline(lls,{color:rd.color,weight:rd.weight||3,opacity:0.9,lineCap:'round',lineJoin:'round'}).addTo(map);
             const hit = L.polyline(lls,{color:'transparent',weight:16,opacity:0}).addTo(map);
-            const obj = { data:rd, line, hit, dots };
+            const obj = { data:rd, line, hit, dots: [] };
             attachRouteEvents(obj);
             routes.push(obj);
             toast(`${rd.name}: ${fmtDist(dist)}`,'success');
+            save(); // Auto-save on draw finish
         }
         clearDraw();
     }
 
     function attachRouteEvents(obj) {
         const rd = obj.data;
+        if (!rd.weight) rd.weight = 3;
         function del() {
             map.removeLayer(obj.line); map.removeLayer(obj.hit);
             if (obj.dots) obj.dots.forEach(d=>map.removeLayer(d));
             routes = routes.filter(r => r.data.id !== rd.id);
             toast('Маршрут удалён','info');
+            save();
         }
         function mkPop() {
             const div = document.createElement('div');
@@ -501,7 +502,25 @@
                     <div style="width:10px;height:10px;border-radius:50%;background:${rd.color};flex-shrink:0;"></div>
                     <strong style="font-size:13px;">${rd.name}</strong>
                 </div>
-                <div style="font-size:11px;color:#94a3b8;margin-bottom:6px;">📏 ${fmtDist(rd.distance||0)} · 📌 ${rd.points.length} точек</div>`;
+                <div style="font-size:11px;color:#94a3b8;margin-bottom:6px;">📏 ${fmtDist(rd.distance||0)} · 📌 ${rd.points.length} точек</div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                    <span style="font-size:11px;color:var(--text-secondary);">Толщина:</span>
+                    <select class="route-weight-select marker-select" style="padding: 2px 6px; font-size: 11px; width: auto; height: 24px; margin: 0;">
+                        <option value="2" ${rd.weight===2?'selected':''}>2px (Тонкая)</option>
+                        <option value="3" ${rd.weight===3?'selected':''}>3px (Обычная)</option>
+                        <option value="5" ${rd.weight===5?'selected':''}>5px (Толстая)</option>
+                        <option value="8" ${rd.weight===8?'selected':''}>8px (Очень толстая)</option>
+                    </select>
+                </div>`;
+
+            // Weight change listener
+            const weightSelect = div.querySelector('.route-weight-select');
+            weightSelect.addEventListener('change', () => {
+                rd.weight = parseInt(weightSelect.value);
+                obj.line.setStyle({ weight: rd.weight });
+                save();
+            });
+
             // Fuel for all bikes
             bikes.forEach(bike => {
                 const f = calcFuel(rd.distance, bike);
@@ -556,22 +575,51 @@
     }
 
     // ---- Markers ----
-    function mkIcon(t) { const e=ICONS[t]||ICONS.default; return L.divIcon({html:`<div class="custom-marker"><span class="custom-marker-inner">${e}</span></div>`,className:'',iconSize:[26,26],iconAnchor:[13,26],popupAnchor:[0,-28]}); }
+    function mkIcon(t, size) {
+        const sz = size || 26;
+        const e = ICONS[t] || ICONS.default;
+        const innerFontSize = Math.round(sz * 11 / 26);
+        return L.divIcon({
+            html: `<div class="custom-marker" style="width:${sz}px; height:${sz}px; border-radius:50% 50% 50% 0;"><span class="custom-marker-inner" style="font-size:${innerFontSize}px; transform:rotate(45deg); display:flex; align-items:center; justify-content:center; width:100%; height:100%;">${e}</span></div>`,
+            className: '',
+            iconSize: [sz, sz],
+            iconAnchor: [sz / 2, sz],
+            popupAnchor: [0, -sz]
+        });
+    }
 
     function addMarker(ll, data) {
-        const d = data || { id:Date.now(), name:'', type:'default', lat:ll.lat, lng:ll.lng };
-        const m = L.marker(ll, { icon:mkIcon(d.type), draggable:true }).addTo(map);
+        const d = data || { id:Date.now(), name:'', type:'default', lat:ll.lat, lng:ll.lng, size:26 };
+        if (!d.size) d.size = 26;
+        const m = L.marker(ll, { icon:mkIcon(d.type, d.size), draggable:true }).addTo(map);
         function mkP() {
             const div=document.createElement('div'); div.className='marker-form';
             div.innerHTML=`<input type="text" class="marker-input" placeholder="Название..." maxlength="40" value="${d.name||''}">
-                <select class="marker-select">${Object.entries(ICONS).map(([k,i])=>`<option value="${k}" ${d.type===k?'selected':''}>${i} ${LABELS[k]}</option>`).join('')}</select>
+                <div style="display:flex; gap:6px; margin-bottom: 4px;">
+                    <select class="marker-select" style="flex:2; margin:0;">${Object.entries(ICONS).map(([k,i])=>`<option value="${k}" ${d.type===k?'selected':''}>${i} ${LABELS[k]}</option>`).join('')}</select>
+                    <select class="marker-size-select marker-select" style="flex:1; margin:0;">
+                        <option value="18" ${d.size===18?'selected':''}>🔎 18px</option>
+                        <option value="26" ${d.size===26?'selected':''}>👤 26px</option>
+                        <option value="36" ${d.size===36?'selected':''}>📣 36px</option>
+                        <option value="46" ${d.size===46?'selected':''}>🚨 46px</option>
+                    </select>
+                </div>
                 <div class="marker-form-buttons"><button class="marker-btn-save">Сохранить</button><button class="marker-btn-delete">Удалить</button></div>`;
-            div.querySelector('.marker-btn-save').addEventListener('click',()=>{d.name=div.querySelector('.marker-input').value;d.type=div.querySelector('.marker-select').value;m.setIcon(mkIcon(d.type));m.closePopup();m.setPopupContent(mkP());toast('Маркер сохранён','success');});
-            div.querySelector('.marker-btn-delete').addEventListener('click',()=>{map.removeLayer(m);markers=markers.filter(x=>x.data.id!==d.id);toast('Маркер удалён','info');});
+            div.querySelector('.marker-btn-save').addEventListener('click',()=>{
+                d.name=div.querySelector('.marker-input').value;
+                d.type=div.querySelector('.marker-select').value;
+                d.size=parseInt(div.querySelector('.marker-size-select').value);
+                m.setIcon(mkIcon(d.type, d.size));
+                m.closePopup();
+                m.setPopupContent(mkP());
+                toast('Маркер сохранён','success');
+                save();
+            });
+            div.querySelector('.marker-btn-delete').addEventListener('click',()=>{map.removeLayer(m);markers=markers.filter(x=>x.data.id!==d.id);toast('Маркер удалён','info');save();});
             return div;
         }
         m.bindPopup(mkP(),{maxWidth:240,closeButton:true});
-        m.on('dragend',()=>{const p=m.getLatLng();d.lat=p.lat;d.lng=p.lng;});
+        m.on('dragend',()=>{const p=m.getLatLng();d.lat=p.lat;d.lng=p.lng;save();});
         markers.push({marker:m,data:d});
     }
 
@@ -821,12 +869,30 @@
             const res = await fetch(`${API_URL}/data`, { headers: { 'Authorization': `Bearer ${currentToken}` } });
             if (!res.ok) throw new Error();
             const data = await res.json();
-            if (data.roads || data.routes || data.markers) {
-                restore(data, false);
+            
+            const hasServerData = (data.roads && data.roads.length > 0) || (data.routes && data.routes.length > 0) || (data.markers && data.markers.length > 0);
+            
+            const localDataStr = localStorage.getItem(STORAGE);
+            let localData = null;
+            try { if (localDataStr) localData = JSON.parse(localDataStr); } catch(e){}
+            const hasLocalData = localData && ((localData.roads && localData.roads.length > 0) || (localData.routes && localData.routes.length > 0) || (localData.markers && localData.markers.length > 0));
+
+            if (hasServerData) {
+                restore(data, true);
                 localStorage.setItem(STORAGE, JSON.stringify(data)); // update local cache
+                toast('Данные успешно загружены из облака ☁️', 'success');
+            } else if (hasLocalData) {
+                // Server is empty, but local has data. Push local to server!
+                toast('Синхронизация локальных данных с облаком...', 'info');
+                await fetch(`${API_URL}/data`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` },
+                    body: JSON.stringify(localData)
+                });
+                toast('Локальные данные сохранены в облако ☁️', 'success');
             }
         } catch (e) {
             console.error('Ошибка загрузки с сервера', e);
+            toast('Ошибка синхронизации с облаком', 'error');
         }
     }
 
@@ -843,10 +909,9 @@
             if(data.markers)data.markers.forEach(md=>addMarker(L.latLng(md.lat,md.lng),md));
             if(data.routes)data.routes.forEach(rd=>{
                 const pts=rd.points.map(p=>L.latLng(p[0],p[1]));
-                const line=L.polyline(pts,{color:rd.color,weight:3,opacity:0.9,lineCap:'round',lineJoin:'round'}).addTo(map);
-                const dots=pts.map(p=>L.circleMarker(p,{radius:DOT,color:rd.color,fillColor:'#fff',fillOpacity:1,weight:1.5}).addTo(map));
+                const line=L.polyline(pts,{color:rd.color,weight:rd.weight||3,opacity:0.9,lineCap:'round',lineJoin:'round'}).addTo(map);
                 const hit=L.polyline(pts,{color:'transparent',weight:16,opacity:0}).addTo(map);
-                const obj={data:rd,line,hit,dots}; attachRouteEvents(obj); routes.push(obj);
+                const obj={data:rd,line,hit,dots:[]}; attachRouteEvents(obj); routes.push(obj);
             });
             if(!silent)toast('Загружено','success');
         }catch(e){console.error(e);if(!silent)toast('Ошибка','error');}
@@ -894,10 +959,114 @@
             case '3':if(!editing)setTool('route');break;
             case '4':if(!editing)setTool('marker');break;
             case '5':if(!editing)setTool('measure');break;
-            case 'z':if((e.ctrlKey||e.metaKey)&&!editing){e.preventDefault();undoDraw();}break;
-            case 's':if(e.ctrlKey||e.metaKey){e.preventDefault();save();}break;
+            case 'z':if((e.ctrlKey||e.metaKey)&&!editing){e.preventDefault();undoDraw();}break;            case 's':if(e.ctrlKey||e.metaKey){e.preventDefault();save();}break;
         }
     });
+
+    // ---- Offline Map Downloading ----
+    const offlineModal = $('offline-modal');
+    if ($('btn-offline') && offlineModal) {
+        $('btn-offline').addEventListener('click', () => {
+            offlineModal.classList.remove('hidden');
+        });
+        $('offline-close').addEventListener('click', () => {
+            offlineModal.classList.add('hidden');
+            $('offline-progress-container').classList.add('hidden');
+        });
+        $('offline-start-download').addEventListener('click', downloadOfflineMap);
+        $('offline-clear-cache').addEventListener('click', async () => {
+            if (confirm('Очистить весь скачанный кэш офлайн карт?')) {
+                const deleted = await caches.delete('enduro-tiles-v1');
+                if (deleted) toast('Кэш карт успешно очищен!', 'success');
+                else toast('Кэш пуст', 'info');
+            }
+        });
+    }
+
+    function latLngToTile(lat, lng, zoom) {
+        const rLat = lat * Math.PI / 180;
+        const n = Math.pow(2, zoom);
+        const x = Math.floor((lng + 180) / 360 * n);
+        const y = Math.floor((1 - Math.log(Math.tan(rLat) + 1 / Math.cos(rLat)) / Math.PI) / 2 * n);
+        return { x, y };
+    }
+
+    async function downloadOfflineMap() {
+        const layerType = $('offline-layer-select').value;
+        const maxZoom = parseInt($('offline-zoom-select').value);
+        const minZoom = 10;
+
+        const bounds = map.getBounds();
+        const northEast = bounds.getNorthEast();
+        const southWest = bounds.getSouthWest();
+
+        let totalTiles = 0;
+        const tileJobs = [];
+
+        for (let z = minZoom; z <= maxZoom; z++) {
+            const tl = latLngToTile(northEast.lat, southWest.lng, z);
+            const br = latLngToTile(southWest.lat, northEast.lng, z);
+
+            const minX = Math.min(tl.x, br.x);
+            const maxX = Math.max(tl.x, br.x);
+            const minY = Math.min(tl.y, br.y);
+            const maxY = Math.max(tl.y, br.y);
+
+            const width = maxX - minX + 1;
+            const height = maxY - minY + 1;
+            totalTiles += width * height;
+
+            if (totalTiles > 3000) {
+                toast('Область слишком велика! Увеличьте масштаб карты (приблизьте) или выберите меньший максимальный зум.', 'error');
+                return;
+            }
+
+            for (let x = minX; x <= maxX; x++) {
+                for (let y = minY; y <= maxY; y++) {
+                    tileJobs.push({ x, y, z });
+                }
+            }
+        }
+
+        if (tileJobs.length === 0) {
+            toast('Нет тайлов для скачивания', 'error');
+            return;
+        }
+
+        $('offline-progress-container').classList.remove('hidden');
+        $('offline-start-download').disabled = true;
+
+        let downloaded = 0;
+        const batchSize = 10;
+
+        for (let i = 0; i < tileJobs.length; i += batchSize) {
+            const batch = tileJobs.slice(i, i + batchSize);
+            await Promise.all(batch.map(async (job) => {
+                const s = (job.x + job.y) % 4;
+                const url = `https://mt${s}.google.com/vt/lyrs=${layerType}&x=${job.x}&y=${job.y}&z=${job.z}`;
+                try {
+                    const res = await fetch(url);
+                    if (res.ok) {
+                        // Done
+                    }
+                } catch(e) {
+                    console.error('Offline tile fetch error:', e);
+                }
+                downloaded++;
+                const pct = Math.round((downloaded / tileJobs.length) * 100);
+                $('offline-progress-percent').textContent = `${pct}%`;
+                $('offline-progress-bar').style.width = `${pct}%`;
+                $('offline-progress-status').textContent = `Скачано ${downloaded} из ${tileJobs.length}...`;
+            }));
+        }
+
+        toast(`Успешно сохранено: ${downloaded} тайлов! Карта работает офлайн 🏜️`, 'success');
+        setTimeout(() => {
+            offlineModal.classList.add('hidden');
+            $('offline-progress-container').classList.add('hidden');
+            $('offline-start-download').disabled = false;
+        }, 1500);
+    }
 
     // ---- PWA ----
     if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(e=>console.log('SW:',e));
