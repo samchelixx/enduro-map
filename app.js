@@ -1055,8 +1055,8 @@
     }
 
     function finishOfflineDraw() {
-        if (offlineDrawPts.length < 3) {
-            toast('Поставьте хотя бы 3 точки для образования области!', 'error');
+        if (offlineDrawPts.length < 2) {
+            toast('Поставьте хотя бы 2 точки для образования области!', 'error');
             return;
         }
         offlineBoundsMode = 'draw';
@@ -1087,11 +1087,11 @@
         if (offlineBoundsMode === 'screen') {
             bounds = map.getBounds();
         } else {
-            if (!offlinePolygon || offlineDrawPts.length < 3) {
-                toast('Нарисуйте область скачивания на карте!', 'error');
+            if (offlineDrawPts.length < 2) {
+                toast('Нарисуйте область скачивания на карте (минимум 2 точки)!', 'error');
                 return;
             }
-            bounds = offlinePolygon.getBounds();
+            bounds = L.latLngBounds(offlineDrawPts);
         }
 
         const northEast = bounds.getNorthEast();
@@ -1113,8 +1113,8 @@
             const height = maxY - minY + 1;
             totalTiles += width * height;
 
-            if (totalTiles > 35000) {
-                toast('Область слишком велика! Выберите меньший зум или приблизьте карту.', 'error');
+            if (totalTiles > 200000) {
+                toast('Область слишком велика! Выберите меньший масштаб или меньший зум.', 'error');
                 return;
             }
 
