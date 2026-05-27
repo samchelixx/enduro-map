@@ -982,6 +982,7 @@
     if ($('btn-offline') && offlineModal) {
         $('btn-offline').addEventListener('click', () => {
             offlineModal.classList.remove('hidden');
+            updateOfflineEstimation();
         });
         $('offline-close').addEventListener('click', () => {
             offlineModal.classList.add('hidden');
@@ -991,8 +992,12 @@
         $('offline-clear-cache').addEventListener('click', async () => {
             if (confirm('Очистить весь скачанный кэш офлайн карт?')) {
                 const deleted = await caches.delete('enduro-tiles-v1');
-                if (deleted) toast('Кэш карт успешно очищен!', 'success');
-                else toast('Кэш пуст', 'info');
+                if (deleted) {
+                    toast('Кэш карт успешно очищен!', 'success');
+                    clearOfflineDrawFully();
+                } else {
+                    toast('Кэш пуст', 'info');
+                }
             }
         });
 
@@ -1002,12 +1007,12 @@
             $('offline-bounds-status').textContent = 'Скачивается: Видимый экран';
             $('offline-btn-screen').classList.add('primary');
             $('offline-btn-draw').classList.remove('primary');
-            clearOfflineDrawSilent();
+            clearOfflineDrawFully();
         });
 
         $('offline-btn-draw').addEventListener('click', () => {
             offlineModal.classList.add('hidden');
-            clearOfflineDrawSilent();
+            clearOfflineDrawFully();
             setTool('offline-draw');
             
             // Set up info panel
@@ -1017,6 +1022,15 @@
             $('info-panel').classList.remove('hidden');
             setFooter('offline-draw');
             toast('Кликните по карте, чтобы задать вершины рамки. Двойной клик — завершить.', 'info');
+        });
+
+        // Dynamic update listeners
+        $('offline-layer-select').addEventListener('change', updateOfflineEstimation);
+        $('offline-zoom-select').addEventListener('change', updateOfflineEstimation);
+        map.on('moveend', () => {
+            if (offlineBoundsMode === 'screen') {
+                updateOfflineEstimation();
+            }
         });
     }
 
@@ -1035,16 +1049,25 @@
         $('info-title').textContent = '💾 Выбор рамки';
         $('info-distance').textContent = fmtDist(d);
         $('info-points').textContent = offlineDrawPts.length;
+        
+        // Update estimate dynamically during drawing
+        updateOfflineEstimation();
     }
 
     function clearOfflineDraw() {
-        clearOfflineDrawSilent();
+        clearOfflineDrawFully();
         $('info-panel').classList.add('hidden');
         setTool('pan');
         offlineModal.classList.remove('hidden');
     }
 
     function clearOfflineDrawSilent() {
+        // Clear vertex dots, keep polygon
+        offlineDrawDots.forEach(d => map.removeLayer(d));
+        offlineDrawDots = [];
+    }
+
+    function clearOfflineDrawFully() {
         offlineDrawDots.forEach(d => map.removeLayer(d));
         offlineDrawDots = [];
         if (offlinePolygon) {
@@ -1052,6 +1075,7 @@
             offlinePolygon = null;
         }
         offlineDrawPts = [];
+        updateOfflineEstimation();
     }
 
     function finishOfflineDraw() {
@@ -1068,6 +1092,7 @@
         setTool('pan');
         offlineModal.classList.remove('hidden');
         toast('Область скачивания успешно задана!', 'success');
+        updateOfflineEstimation();
     }
 
     function latLngToTile(lat, lng, zoom) {
@@ -1076,6 +1101,62 @@
         const x = Math.floor((lng + 180) / 360 * n);
         const y = Math.floor((1 - Math.log(Math.tan(rLat) + 1 / Math.cos(rLat)) / Math.PI) / 2 * n);
         return { x, y };
+    }
+
+    function updateOfflineEstimation() {
+        const estCountEl = $('offline-est-count');
+        const estSizeEl = $('offline-est-size');
+        if (!estCountEl || !estSizeEl) return;
+
+        const layerType = $('offline-layer-select').value;
+        const maxZoom = parseInt($('offline-zoom-select').value);
+        const minZoom = 10;
+
+        let bounds;
+        if (offlineBoundsMode === 'screen') {
+            bounds = map.getBounds();
+        } else {
+            if (offlineDrawPts.length < 2) {
+                estCountEl.textContent = '0';
+                estSizeEl.textContent = 'Нарисуйте рамку...';
+                return;
+            }
+            bounds = L.latLngBounds(offlineDrawPts);
+        }
+
+        const northEast = bounds.getNorthEast();
+        const southWest = bounds.getSouthWest();
+
+        let totalTiles = 0;
+
+        for (let z = minZoom; z <= maxZoom; z++) {
+            const tl = latLngToTile(northEast.lat, southWest.lng, z);
+            const br = latLngToTile(southWest.lat, northEast.lng, z);
+
+            const minX = Math.min(tl.x, br.x);
+            const maxX = Math.max(tl.x, br.x);
+            const minY = Math.min(tl.y, br.y);
+            const maxY = Math.max(tl.y, br.y);
+
+            const width = maxX - minX + 1;
+            const height = maxY - minY + 1;
+            totalTiles += width * height;
+        }
+
+        let tileWeightKB = 20;
+        if (layerType === 'p') tileWeightKB = 15;
+        if (layerType === 'h') tileWeightKB = 4;
+
+        const totalWeightMB = (totalTiles * tileWeightKB) / 1024;
+
+        estCountEl.textContent = totalTiles.toLocaleString('ru-RU');
+        if (totalWeightMB < 0.1) {
+            estSizeEl.textContent = `${Math.round(totalWeightMB * 1024)} КБ`;
+        } else if (totalWeightMB > 1024) {
+            estSizeEl.textContent = `${(totalWeightMB / 1024).toFixed(1)} ГБ`;
+        } else {
+            estSizeEl.textContent = `${totalWeightMB.toFixed(1)} МБ`;
+        }
     }
 
     async function downloadOfflineMap() {
@@ -1113,7 +1194,7 @@
             const height = maxY - minY + 1;
             totalTiles += width * height;
 
-            if (totalTiles > 200000) {
+            if (totalTiles > 1500000) {
                 toast('Область слишком велика! Выберите меньший масштаб или меньший зум.', 'error');
                 return;
             }
@@ -1130,38 +1211,65 @@
             return;
         }
 
+        let avgSizeKB = 20;
+        if (layerType === 'p') avgSizeKB = 15;
+        if (layerType === 'h') avgSizeKB = 4;
+        const totalSizeMB = (tileJobs.length * avgSizeKB) / 1024;
+        const sizeString = totalSizeMB > 1024 ? `${(totalSizeMB / 1024).toFixed(1)} ГБ` : `${Math.round(totalSizeMB)} МБ`;
+
+        if (tileJobs.length > 30000) {
+            const confirmMsg = `Внимание!\n\nВы собираетесь скачать ${tileJobs.length.toLocaleString('ru-RU')} тайлов.\nПримерный размер загрузки: ~${sizeString}.\n\nЭто может занять значительное время и потребовать много свободного места на устройстве.\n\nПродолжить скачивание?`;
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+        }
+
         $('offline-progress-container').classList.remove('hidden');
         $('offline-start-download').disabled = true;
+        $('offline-clear-cache').disabled = true;
+        $('offline-close').disabled = true;
 
         let downloaded = 0;
-        const batchSize = 12;
+        const batchSize = 40; // 4x speed increase
+
+        // Helper fetch function with retry logic (up to 2 retries)
+        async function fetchWithRetry(url, retries = 2) {
+            for (let attempt = 0; attempt <= retries; attempt++) {
+                try {
+                    const res = await fetch(url);
+                    if (res.ok) return true;
+                } catch (e) {
+                    if (attempt === retries) {
+                        console.error(`Offline tile fetch failed after ${retries} retries:`, url, e);
+                    } else {
+                        await new Promise(resolve => setTimeout(resolve, 300 * (attempt + 1)));
+                    }
+                }
+            }
+            return false;
+        }
 
         for (let i = 0; i < tileJobs.length; i += batchSize) {
             const batch = tileJobs.slice(i, i + batchSize);
             await Promise.all(batch.map(async (job) => {
                 const s = (job.x + job.y) % 4;
                 const url = `https://mt${s}.google.com/vt/lyrs=${layerType}&x=${job.x}&y=${job.y}&z=${job.z}`;
-                try {
-                    const res = await fetch(url);
-                    if (res.ok) {
-                        // Done
-                    }
-                } catch(e) {
-                    console.error('Offline tile fetch error:', e);
-                }
+                await fetchWithRetry(url);
                 downloaded++;
                 const pct = Math.round((downloaded / tileJobs.length) * 100);
                 $('offline-progress-percent').textContent = `${pct}%`;
                 $('offline-progress-bar').style.width = `${pct}%`;
-                $('offline-progress-status').textContent = `Скачано ${downloaded} из ${tileJobs.length}...`;
+                $('offline-progress-status').textContent = `Загружено ${downloaded.toLocaleString('ru-RU')} из ${tileJobs.length.toLocaleString('ru-RU')}`;
             }));
         }
 
-        toast(`Успешно сохранено: ${downloaded} тайлов! Карта работает офлайн 🏜️`, 'success');
+        toast(`Успешно сохранено: ${downloaded.toLocaleString('ru-RU')} тайлов!`, 'success');
         setTimeout(() => {
             offlineModal.classList.add('hidden');
             $('offline-progress-container').classList.add('hidden');
             $('offline-start-download').disabled = false;
+            $('offline-clear-cache').disabled = false;
+            $('offline-close').disabled = false;
         }, 1500);
     }
 
