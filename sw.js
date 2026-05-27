@@ -1,7 +1,23 @@
-const CACHE_NAME = 'enduro-map-v12';
+const CACHE_NAME = 'enduro-map-v13';
+
+const ASSETS = [
+    './',
+    'index.html',
+    'index.css',
+    'app.js',
+    'manifest.json',
+    'icon.svg',
+    'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+    'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+];
 
 self.addEventListener('install', (event) => {
-    self.skipWaiting();
+    event.waitUntil(
+        caches.open(CACHE_NAME)
+            .then(cache => cache.addAll(ASSETS))
+            .then(() => self.skipWaiting())
+            .catch(err => console.error('Pre-cache error during install:', err))
+    );
 });
 
 self.addEventListener('activate', (event) => {
@@ -42,7 +58,7 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Everything else — network first, cache fallback
+    // Everything else — network first, cache fallback with search query ignore
     event.respondWith(
         fetch(event.request)
             .then(response => {
@@ -52,6 +68,6 @@ self.addEventListener('fetch', (event) => {
                 }
                 return response;
             })
-            .catch(() => caches.match(event.request))
+            .catch(() => caches.match(event.request, { ignoreSearch: true }))
     );
 });
