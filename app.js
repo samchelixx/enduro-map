@@ -36,6 +36,12 @@
     let roads = [], markers = [], routes = [];
     let drawPts = [], drawLine = null, drawDots = [];
     let measPts = [], measLine = null, measDots = [];
+    
+    // Offline draw state
+    let offlineBoundsMode = 'screen'; // 'screen' | 'draw'
+    let offlineDrawPts = [];
+    let offlinePolygon = null;
+    let offlineDrawDots = [];
 
     // Edit state
     let editing = null;       // { type:'road'|'route', obj, pts:L.LatLng[], vertexMarkers[], midMarkers[], line, continuing:bool }
@@ -105,14 +111,15 @@
         if (tool==='road' && t!=='road') finishRoad();
         if (tool==='route' && t!=='route') finishRoute();
         if (tool==='measure' && t!=='measure') finishMeasure();
+        if (tool==='offline-draw' && t!=='offline-draw') clearOfflineDrawSilent();
         tool = t;
         Object.values(tBtns).forEach(b => b.classList.remove('active'));
-        tBtns[t].classList.add('active');
+        if (tBtns[t]) tBtns[t].classList.add('active');
         $('map').classList.toggle('cursor-crosshair', t!=='pan');
         pickerEl.classList.toggle('hidden', t!=='route');
         $('info-footer').classList.add('hidden');
         $('info-fuel').classList.add('hidden');
-        const h = { road:'Дорога: клик=точка, 2×клик=готово', route:'Маршрут: клик=точка, 2×клик=готово', marker:'Нажмите на карту', measure:'Измерение: клик=точка' };
+        const h = { road:'Дорога: клик=точка, 2×клик=готово', route:'Маршрут: клик=точка, 2×клик=готово', marker:'Нажмите на карту', measure:'Измерение: клик=точка', 'offline-draw': 'Нарисуйте область на карте: клик = угол, двойной клик = готово.' };
         if (h[t]) toast(h[t],'info');
     }
 
@@ -125,12 +132,14 @@
         if (tool==='road'||tool==='route') addDrawPt(e.latlng);
         else if (tool==='marker') addMarker(e.latlng);
         else if (tool==='measure') addMeasPt(e.latlng);
+        else if (tool==='offline-draw') addOfflineDrawPt(e.latlng);
     });
     map.on('dblclick', e => {
         if (editing && editing.continuing) { L.DomEvent.stop(e); finishEdit(); return; }
         if (tool==='road') { L.DomEvent.stop(e); finishRoad(); }
         else if (tool==='route') { L.DomEvent.stop(e); finishRoute(); }
         else if (tool==='measure') { L.DomEvent.stop(e); finishMeasure(); }
+        else if (tool==='offline-draw') { L.DomEvent.stop(e); finishOfflineDraw(); }
     });
 
     $('info-close').addEventListener('click', () => {
@@ -197,6 +206,10 @@
             footer.innerHTML = '<button class="info-btn" id="ft-undo-c">↩ Отмена</button><button class="info-btn primary" id="ft-done-c">✓ Завершить</button>';
             $('ft-undo-c').addEventListener('click', editUndoContinue);
             $('ft-done-c').addEventListener('click', finishEdit);
+        } else if (mode === 'offline-draw') {
+            footer.innerHTML = '<button class="info-btn" id="ft-offline-clear">✕ Сбросить</button><button class="info-btn primary" id="ft-offline-done">✓ Готово</button>';
+            $('ft-offline-clear').addEventListener('click', clearOfflineDraw);
+            $('ft-offline-done').addEventListener('click', finishOfflineDraw);
         }
     }
 
@@ -963,6 +976,7 @@
         }
     });
 
+
     // ---- Offline Map Downloading ----
     const offlineModal = $('offline-modal');
     if ($('btn-offline') && offlineModal) {
@@ -981,6 +995,79 @@
                 else toast('Кэш пуст', 'info');
             }
         });
+
+        // Area selection buttons
+        $('offline-btn-screen').addEventListener('click', () => {
+            offlineBoundsMode = 'screen';
+            $('offline-bounds-status').textContent = 'Скачивается: Видимый экран';
+            $('offline-btn-screen').classList.add('primary');
+            $('offline-btn-draw').classList.remove('primary');
+            clearOfflineDrawSilent();
+        });
+
+        $('offline-btn-draw').addEventListener('click', () => {
+            offlineModal.classList.add('hidden');
+            clearOfflineDrawSilent();
+            setTool('offline-draw');
+            
+            // Set up info panel
+            $('info-title').textContent = '💾 Выбор рамки';
+            $('info-distance').textContent = '0 м';
+            $('info-points').textContent = '0';
+            $('info-panel').classList.remove('hidden');
+            setFooter('offline-draw');
+            toast('Кликните по карте, чтобы задать вершины рамки. Двойной клик — завершить.', 'info');
+        });
+    }
+
+    // Offline drawing handlers
+    function addOfflineDrawPt(ll) {
+        offlineDrawPts.push(ll);
+        const col = '#f97316';
+        offlineDrawDots.push(L.circleMarker(ll, { radius: DOT, color: col, fillColor: '#fff', fillOpacity: 1, weight: 1.5 }).addTo(map));
+        
+        if (offlinePolygon) map.removeLayer(offlinePolygon);
+        if (offlineDrawPts.length >= 2) {
+            offlinePolygon = L.polygon(offlineDrawPts, { color: col, weight: 2, fillOpacity: 0.15, dashArray: '5,5' }).addTo(map);
+        }
+        
+        const d = calcDist(offlineDrawPts);
+        $('info-title').textContent = '💾 Выбор рамки';
+        $('info-distance').textContent = fmtDist(d);
+        $('info-points').textContent = offlineDrawPts.length;
+    }
+
+    function clearOfflineDraw() {
+        clearOfflineDrawSilent();
+        $('info-panel').classList.add('hidden');
+        setTool('pan');
+        offlineModal.classList.remove('hidden');
+    }
+
+    function clearOfflineDrawSilent() {
+        offlineDrawDots.forEach(d => map.removeLayer(d));
+        offlineDrawDots = [];
+        if (offlinePolygon) {
+            map.removeLayer(offlinePolygon);
+            offlinePolygon = null;
+        }
+        offlineDrawPts = [];
+    }
+
+    function finishOfflineDraw() {
+        if (offlineDrawPts.length < 3) {
+            toast('Поставьте хотя бы 3 точки для образования области!', 'error');
+            return;
+        }
+        offlineBoundsMode = 'draw';
+        $('offline-bounds-status').textContent = 'Скачивается: Нарисованная область';
+        $('offline-btn-draw').classList.add('primary');
+        $('offline-btn-screen').classList.remove('primary');
+        
+        $('info-panel').classList.add('hidden');
+        setTool('pan');
+        offlineModal.classList.remove('hidden');
+        toast('Область скачивания успешно задана!', 'success');
     }
 
     function latLngToTile(lat, lng, zoom) {
@@ -996,7 +1083,17 @@
         const maxZoom = parseInt($('offline-zoom-select').value);
         const minZoom = 10;
 
-        const bounds = map.getBounds();
+        let bounds;
+        if (offlineBoundsMode === 'screen') {
+            bounds = map.getBounds();
+        } else {
+            if (!offlinePolygon || offlineDrawPts.length < 3) {
+                toast('Нарисуйте область скачивания на карте!', 'error');
+                return;
+            }
+            bounds = offlinePolygon.getBounds();
+        }
+
         const northEast = bounds.getNorthEast();
         const southWest = bounds.getSouthWest();
 
@@ -1016,8 +1113,8 @@
             const height = maxY - minY + 1;
             totalTiles += width * height;
 
-            if (totalTiles > 3000) {
-                toast('Область слишком велика! Увеличьте масштаб карты (приблизьте) или выберите меньший максимальный зум.', 'error');
+            if (totalTiles > 35000) {
+                toast('Область слишком велика! Выберите меньший зум или приблизьте карту.', 'error');
                 return;
             }
 
@@ -1037,7 +1134,7 @@
         $('offline-start-download').disabled = true;
 
         let downloaded = 0;
-        const batchSize = 10;
+        const batchSize = 12;
 
         for (let i = 0; i < tileJobs.length; i += batchSize) {
             const batch = tileJobs.slice(i, i + batchSize);

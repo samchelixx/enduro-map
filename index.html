@@ -248,7 +248,7 @@
             </div>
             <div class="modal-body">
                 <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.4;">
-                    Вы можете скачать текущую область экрана для использования без интернета. Карты кэшируются на максимальном зуме.
+                    Вы можете скачать выбранную область на карте для использования без интернета на максимальном зуме.
                 </p>
                 <div class="bike-field" style="margin-bottom: 12px;">
                     <span class="bike-field-label">Тип карты</span>
@@ -259,12 +259,24 @@
                     </select>
                 </div>
                 <div class="bike-field" style="margin-bottom: 12px;">
-                    <span class="bike-field-label">Максимальный зум для скачивания</span>
+                    <span class="bike-field-label">Максимальный зум</span>
                     <select id="offline-zoom-select" class="marker-select">
                         <option value="15">До 15 зума (Быстро)</option>
-                        <option value="16" selected>До 16 зума (Средне)</option>
-                        <option value="17">До 17 зума (Максимально детально)</option>
+                        <option value="16">До 16 зума (Средне)</option>
+                        <option value="17">До 17 зума (Детально)</option>
+                        <option value="18">До 18 зума (Очень детально)</option>
+                        <option value="19" selected>До 19 зума (Макс. зум 19 🏁)</option>
                     </select>
+                </div>
+                <div class="bike-field" style="margin-bottom: 12px;">
+                    <span class="bike-field-label">Область скачивания</span>
+                    <div style="display: flex; gap: 8px; margin-top: 4px;">
+                        <button class="info-btn primary" id="offline-btn-screen" style="flex:1; padding: 6px;">📺 Экран</button>
+                        <button class="info-btn" id="offline-btn-draw" style="flex:1; padding: 6px;">✏️ Нарисовать</button>
+                    </div>
+                    <div id="offline-bounds-status" style="font-size: 11px; color: var(--accent); font-weight: 600; margin-top: 6px; text-align: center;">
+                        Скачивается: Видимый экран
+                    </div>
                 </div>
                 <div id="offline-progress-container" class="hidden" style="margin-top: 12px;">
                     <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
